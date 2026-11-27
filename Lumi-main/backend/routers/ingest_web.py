@@ -1,0 +1,36 @@
+
+from fastapi import APIRouter, HTTPException
+from backend.services.web_service import ingest_web
+from fastapi import Depends
+from backend.auth.dependencies import get_current_user
+from backend.database.models import User
+
+router = APIRouter(prefix="/ingest/web")
+
+
+@router.post("")
+def ingest_web_route(url: str, current_user: User = Depends(get_current_user)):
+    """Ingest a web page into the knowledge base."""
+    if not url or not url.strip():
+        raise HTTPException(status_code=400, detail="URL is required.")
+
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid URL. Must start with http:// or https://",
+        )
+
+    try:
+        result = ingest_web(url.strip(), current_user.id)
+        return {
+            "message": "Web page ingested successfully.",
+            "chunks": result.get("chunks", 0),
+            "url": url,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to scrape web page: {str(e)}. The site may be blocking requests.",
+        )
